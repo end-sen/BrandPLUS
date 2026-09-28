@@ -1,0 +1,35 @@
+# Python Virtual Environments & Caches
+.venv/
+venv/
+ENV/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Machine Learning Saved Models
+backend/app/nlp/saved_models/*.joblib
+
+# Node.js & Frontend Build Outputs
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+.npm
+*.log
+
+# Databases & Local Data
+*.db
+*.sqlite3
+reputation_monitor.db
+backend/reputation_monitor.db
+
+# Temporary Uploaded Archives & Extraction Directories
+brandpulse.zip
+temp_brandpulse/
+
+# OS & IDE Junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
