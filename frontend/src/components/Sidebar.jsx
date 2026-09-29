@@ -4,32 +4,10 @@ export default function Sidebar({ currentBrand, activeTab, setActiveTab, alertCo
   return (
     <aside className="sidebar" aria-label="Main navigation">
       <a className="brand-lockup" href="#overview" style={{ padding: '6px 0', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }} onClick={(e) => { e.preventDefault(); setActiveTab('overview'); }}>
-        <div style={{
-          width: '38px',
-          height: '38px',
-          borderRadius: '10px',
-          background: 'linear-gradient(135deg, #4f46e5 0%, #2563eb 100%)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: '0 4px 14px rgba(79, 70, 229, 0.3)'
-        }}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-          </svg>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+        <img src="/icon.png" style={{ height: '36px', width: 'auto', objectFit: 'contain' }} alt="BrandPlus Logo Mark" />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
           <span style={{ fontSize: '20px', fontWeight: '800', color: '#0f172a', letterSpacing: '-0.5px' }}>Brand</span>
-          <span style={{ 
-            fontSize: '11px', 
-            fontWeight: '800', 
-            color: '#ffffff', 
-            background: 'linear-gradient(135deg, #4f46e5, #2563eb)', 
-            padding: '2px 7px', 
-            borderRadius: '6px',
-            letterSpacing: '0.5px',
-            boxShadow: '0 2px 6px rgba(79, 70, 229, 0.25)'
-          }}>PLUS</span>
+          <span style={{ fontSize: '20px', fontWeight: '800', color: '#1e293b', letterSpacing: '-0.5px' }}>Plus</span>
         </div>
       </a>
 
