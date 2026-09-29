@@ -147,6 +147,28 @@ def get_brand_dashboard(brand_id: int, db: Session = Depends(get_db)):
     articles = db.query(Article).filter(Article.brand_id == brand_id).order_by(Article.publication_date.desc()).all()
     latest_score = db.query(ReputationScore).filter(ReputationScore.brand_id == brand_id).order_by(ReputationScore.timestamp.desc()).first()
 
+    # Automatically sync existing DB articles with upgraded ContextAwareSentimentAnalyzer
+    updated_any = False
+    for a in articles:
+        full_content = f"{a.title}. {a.text}"
+        res = sentiment_analyzer.analyze(full_content)
+        new_sent = res["sentiment"]
+        new_emo = emotion_classifier.classify(full_content, new_sent)
+        if a.sentiment != new_sent or a.emotion != new_emo:
+            a.sentiment = new_sent
+            a.emotion = new_emo
+            updated_any = True
+
+    if updated_any:
+        s_res = reputation_engine.calculate_reputation_score(articles)
+        if latest_score:
+            latest_score.score = s_res["score"]
+            latest_score.positive_pct = s_res["positive_pct"]
+            latest_score.neutral_pct = s_res["neutral_pct"]
+            latest_score.negative_pct = s_res["negative_pct"]
+            latest_score.health_status = s_res["health_status"]
+        db.commit()
+
     if not latest_score:
         s_res = reputation_engine.calculate_reputation_score(articles)
         latest_score = ReputationScore(
