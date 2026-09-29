@@ -28,42 +28,51 @@ export default function App() {
   useEffect(() => {
     if (!currentBrand) return;
 
+    // Target deployed Render backend domain for WebSockets when hosted on Vercel
+    let wsHost = window.location.host;
+    if (window.location.hostname.includes('vercel.app')) {
+      wsHost = 'brandplus.onrender.com';
+    }
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-    const wsUrl = `${protocol}//${host}/ws/brand/${currentBrand.id}`;
+    const wsUrl = `${protocol}//${wsHost}/ws/brand/${currentBrand.id}`;
 
-    const ws = new WebSocket(wsUrl);
-    socketRef.current = ws;
+    let ws;
+    try {
+      ws = new WebSocket(wsUrl);
+      socketRef.current = ws;
 
-    ws.onopen = () => {
-      console.log(`WebSocket connected to ${wsUrl}`);
-    };
+      ws.onopen = () => {
+        console.log(`WebSocket connected to ${wsUrl}`);
+      };
 
-    ws.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data);
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
 
-        if (message.event === 'new_mention') {
-          showToast(`⚡ New Mention: "${message.data.title.substring(0, 45)}..."`);
-          loadDashboardData(currentBrand.id);
-        } else if (message.event === 'score_updated') {
-          showToast(`📈 Reputation score updated to ${message.data.score}`);
-          loadDashboardData(currentBrand.id);
-        } else if (message.event === 'alert_triggered') {
-          showToast(`🚨 Alert Triggered: ${message.data.title}`);
-          loadDashboardData(currentBrand.id);
+          if (message.event === 'new_mention') {
+            showToast(`⚡ New Mention: "${message.data.title.substring(0, 45)}..."`);
+            loadDashboardData(currentBrand.id);
+          } else if (message.event === 'score_updated') {
+            showToast(`📈 Reputation score updated to ${message.data.score}`);
+            loadDashboardData(currentBrand.id);
+          } else if (message.event === 'alert_triggered') {
+            showToast(`🚨 Alert Triggered: ${message.data.title}`);
+            loadDashboardData(currentBrand.id);
+          }
+        } catch (err) {
+          console.error('Error handling WebSocket message:', err);
         }
-      } catch (err) {
-        console.error('Error handling WebSocket message:', err);
-      }
-    };
+      };
 
-    ws.onerror = (err) => {
-      console.warn('WebSocket connection error:', err);
-    };
+      ws.onerror = () => {
+        // Gracefully handle WebSocket connection attempt failure without unhandled console errors
+      };
+    } catch (e) {
+      console.warn('WebSocket connection unavailable:', e);
+    }
 
     return () => {
-      if (ws.readyState === WebSocket.OPEN) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
         ws.close();
       }
     };

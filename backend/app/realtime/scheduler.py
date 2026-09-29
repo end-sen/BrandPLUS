@@ -59,8 +59,9 @@ class BackgroundMonitorScheduler:
                 text = tmpl["text"].format(brand=brand.name)
                 
                 # Analyze NLP
-                sent_res = sentiment_analyzer.analyze(text)
-                emotion = emotion_classifier.classify(text, sent_res["sentiment"])
+                full_content = f"{title}. {text}"
+                sent_res = sentiment_analyzer.analyze(full_content)
+                emotion = emotion_classifier.classify(full_content, sent_res["sentiment"])
                 topics = ner_topic_extractor.extract_topics(text)
                 entities = ner_topic_extractor.extract_entities(text)
                 reliability = reputation_engine.calculate_reliability_score(stype)

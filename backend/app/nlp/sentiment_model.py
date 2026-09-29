@@ -1,9 +1,25 @@
 import os
 import joblib
 import numpy as np
+import nltk
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from .preprocessor import preprocessor
+
+# Ensure VADER lexicon is downloaded
+try:
+    nltk.data.find('sentiment/vader_lexicon.zip')
+except LookupError:
+    try:
+        nltk.download('vader_lexicon', quiet=True)
+    except Exception:
+        pass
+
+try:
+    from nltk.sentiment.vader import SentimentIntensityAnalyzer
+    vader_analyzer = SentimentIntensityAnalyzer()
+except Exception:
+    vader_analyzer = None
 
 MODEL_DIR = os.path.join(os.path.dirname(__file__), "saved_models")
 MODEL_PATH = os.path.join(MODEL_DIR, "sentiment_model.joblib")
@@ -27,6 +43,8 @@ SEED_DATASET = [
     ("University achieves top NIRF ranking and record campus placements this year.", "Positive"),
     ("Faculty research paper published in prestigious international journal with high accolades.", "Positive"),
     ("State of the art campus laboratory facilities and vibrant student community.", "Positive"),
+    ("Why students & alumni consistently recommend for higher education with outstanding academic growth.", "Positive"),
+    ("Secures major research grant for AI & engineering innovation center.", "Positive"),
     
     # Neutral (🟡)
     ("The company announced its Q3 financial results earlier today.", "Neutral"),
@@ -41,6 +59,7 @@ SEED_DATASET = [
     ("System maintenance is scheduled for Sunday midnight UTC.", "Neutral"),
     ("The university announced semester examination dates and timetable on portal.", "Neutral"),
     ("Annual sports meet and cultural festival scheduled for next month.", "Neutral"),
+    ("No outsiders at campus, walkie-talkie carriers were security personnel: Police update.", "Neutral"),
     
     # Negative (🔴)
     ("Terrible experience! The product broke within 2 days of usage.", "Negative"),
@@ -56,7 +75,12 @@ SEED_DATASET = [
     ("Unreliable service, constant downtime, and zero transparency.", "Negative"),
     ("Worst purchase ever. Fraudulent advertising and poor service.", "Negative"),
     ("Students protest unexpected tuition fee hike and hostel maintenance delays.", "Negative"),
-    ("Severe backlash over delayed exam results and poor campus administrative response.", "Negative")
+    ("Severe backlash over delayed exam results and poor campus administrative response.", "Negative"),
+    ("Campus littered with scars of arson, loot and vandalism following violent clash.", "Negative"),
+    ("Masks, Iron Rods, Fire: The night violence tore through university campus.", "Negative"),
+    ("Rumour, outsiders or politics? Campus violence raises serious safety questions.", "Negative"),
+    ("Student brawl and arson attack leaves several injured as police investigate.", "Negative"),
+    ("Protests erupt over administrative corruption and severe safety hazards.", "Negative")
 ]
 
 class SentimentAnalyzer:
@@ -67,7 +91,6 @@ class SentimentAnalyzer:
 
     def _initialize_or_load_model(self):
         os.makedirs(MODEL_DIR, exist_ok=True)
-        # Always retrain seed model to ensure updated vocabulary is active
         self.train_seed_model()
 
     def train_seed_model(self):
@@ -85,52 +108,72 @@ class SentimentAnalyzer:
 
     def analyze(self, text: str) -> dict:
         """
-        Analyzes sentiment of given text.
+        Analyzes sentiment of given text using Ensemble (VADER + TF-IDF ML + Domain Lexicon).
         Returns: {
             'sentiment': 'Positive' | 'Neutral' | 'Negative',
             'score': float (-1.0 to 1.0),
             'probabilities': {'Positive': float, 'Neutral': float, 'Negative': float}
         }
         """
-        cleaned_text = preprocessor.process_text(text)
-        if not cleaned_text:
+        if not text or not text.strip():
             return {"sentiment": "Neutral", "score": 0.0, "probabilities": {"Positive": 0.33, "Neutral": 0.34, "Negative": 0.33}}
 
-        # Lexicon keywords for additional polarity boost
+        # 1. Lexicon Keyword Frequency
         pos_words = {
             "love", "amazing", "great", "excellent", "best", "fantastic", "smooth", "high", "upgrade", 
             "clean", "impressive", "outstanding", "solid", "top", "rank", "ranking", "placed", "placement", 
-            "accredited", "praise", "accolades", "vibrant", "success"
+            "accredited", "praise", "accolades", "vibrant", "success", "outperforming", "win", "victory", "award"
         }
         neg_words = {
             "terrible", "worst", "buggy", "broke", "crash", "breach", "outage", "furious", "disaster", 
             "fine", "fraud", "lag", "horrible", "overpriced", "drop", "backlash", "complaint", "protest", 
             "delay", "fail", "failure", "concern", "criticism", "poor", "bad", "hike", "scam", "upset", 
-            "cancel", "disappointment", "backlash"
+            "cancel", "disappointment", "arson", "loot", "vandalism", "violence", "tore", "fire", "riot",
+            "brawl", "clash", "injury", "injured", "police", "investigation", "suspect", "arrested", "court",
+            "accused", "scandal", "panic", "threat", "rods", "masks", "rumour", "outsider", "outsiders", "unrest"
         }
         
         raw_words = set(preprocessor.clean_text(text).lower().split())
         pos_hits = len(raw_words.intersection(pos_words))
         neg_hits = len(raw_words.intersection(neg_words))
-        
-        X = self.vectorizer.transform([cleaned_text])
-        probs = self.model.predict_proba(X)[0]
-        classes = self.model.classes_
-        
-        prob_dict = {cls: float(prob) for cls, prob in zip(classes, probs)}
+
+        # 2. VADER Polarity Scoring
+        vader_comp = 0.0
+        if vader_analyzer:
+            try:
+                vs = vader_analyzer.polarity_scores(text)
+                vader_comp = vs["compound"]
+            except Exception:
+                pass
+
+        # 3. ML Model Prediction
+        cleaned_text = preprocessor.process_text(text)
+        if cleaned_text and self.vectorizer and self.model:
+            X = self.vectorizer.transform([cleaned_text])
+            probs = self.model.predict_proba(X)[0]
+            classes = self.model.classes_
+            prob_dict = {cls: float(prob) for cls, prob in zip(classes, probs)}
+        else:
+            prob_dict = {"Positive": 0.33, "Neutral": 0.34, "Negative": 0.33}
+
         for k in ["Positive", "Neutral", "Negative"]:
             if k not in prob_dict:
                 prob_dict[k] = 0.0
 
-        # Adjust with lexicon hits
-        if pos_hits > neg_hits:
-            prob_dict["Positive"] += 0.25 * pos_hits
-        elif neg_hits > pos_hits:
-            prob_dict["Negative"] += 0.25 * neg_hits
+        # Adjust ML probabilities with VADER & Lexicon signals
+        if neg_hits > pos_hits or vader_comp < -0.15:
+            boost = 0.35 * max(neg_hits, 1) + abs(vader_comp) * 0.4
+            prob_dict["Negative"] += boost
+            prob_dict["Positive"] = max(0.0, prob_dict["Positive"] - boost * 0.5)
+        elif pos_hits > neg_hits or vader_comp > +0.15:
+            boost = 0.35 * max(pos_hits, 1) + vader_comp * 0.4
+            prob_dict["Positive"] += boost
+            prob_dict["Negative"] = max(0.0, prob_dict["Negative"] - boost * 0.5)
 
         # Normalize probabilities
         total_p = sum(prob_dict.values())
-        prob_dict = {k: v / total_p for k, v in prob_dict.items()}
+        if total_p > 0:
+            prob_dict = {k: v / total_p for k, v in prob_dict.items()}
 
         predicted_sentiment = max(prob_dict, key=prob_dict.get)
         

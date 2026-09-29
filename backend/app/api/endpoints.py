@@ -43,8 +43,9 @@ def search_and_monitor_brand(payload: BrandCreate, db: Session = Depends(get_db)
         raw_articles = web_scraper_manager.collect_brand_articles(brand_name, max_articles=18)
         
         for art in raw_articles:
-            sent_res = sentiment_analyzer.analyze(art["text"])
-            emotion = emotion_classifier.classify(art["text"], sent_res["sentiment"])
+            full_content = f"{art['title']}. {art['text']}"
+            sent_res = sentiment_analyzer.analyze(full_content)
+            emotion = emotion_classifier.classify(full_content, sent_res["sentiment"])
             topics = ner_topic_extractor.extract_topics(art["text"])
             entities = ner_topic_extractor.extract_entities(art["text"])
             reliability = reputation_engine.calculate_reliability_score(art.get("source_type", "News"))
@@ -299,8 +300,9 @@ def trigger_live_scrape(brand_id: int, db: Session = Depends(get_db)):
     added_count = 0
 
     for art in new_arts:
-        sent_res = sentiment_analyzer.analyze(art["text"])
-        emotion = emotion_classifier.classify(art["text"], sent_res["sentiment"])
+        full_content = f"{art['title']}. {art['text']}"
+        sent_res = sentiment_analyzer.analyze(full_content)
+        emotion = emotion_classifier.classify(full_content, sent_res["sentiment"])
         topics = ner_topic_extractor.extract_topics(art["text"])
         entities = ner_topic_extractor.extract_entities(art["text"])
         reliability = reputation_engine.calculate_reliability_score(art.get("source_type", "News"))
